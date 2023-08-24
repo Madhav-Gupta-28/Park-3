@@ -2,25 +2,19 @@
 pragma solidity ^0.8.7;
 
 import  "@uma/core/contracts/oracle/interfaces/OptimisticOracleV2Interface.sol";
-
 import "hardhat/console.sol";
-
-
 
 // This contract shows how to get up and running as quickly as posible with UMA's Optimistic Oracle.
 // We make a simple price request to the OO and return it to the user.
 
 contract Uma {
-
     address public immutable owner;
     uint256 nextProposal;
 
     constructor(){
         owner = msg.sender;
         nextProposal = 1;
-
     }
-
 
     // Create an Optimistic oracle instance at the deployed address on Mumbai.
     OptimisticOracleV2Interface oo = OptimisticOracleV2Interface(0xA5B9d8a0B0Fa04Ba71BDD68069661ED5C0848884);
@@ -31,11 +25,8 @@ contract Uma {
     mapping (address => uint256[]) contentIds; // address of the video/picture uploader
     mapping (uint256 => address) contentIdToAddress;
     mapping (uint256 => bytes) contentIdToAncillaryData;
-
     mapping(uint256 => uint256) contentIdToStartingTime;
     mapping(uint256 => uint256) contentIdToExpirationTime;
-
-
 
     modifier correctUploader (address user, uint contentId) {
         require(contentIdToAddress[contentId] == user);
@@ -45,8 +36,8 @@ contract Uma {
     //for debug purposes
     function registerContentId (uint contentId) public {
         require(contentIdToAddress[contentId] == address(0));
+	contentIdToAddress[contentId] = msg.sender;
         contentIds[msg.sender].push(contentId);
-        contentIdToAddress[contentId] = msg.sender;
     }
 
     function setAncillaryData(string memory data, uint contentId) public correctUploader(msg.sender, contentId) {
@@ -70,20 +61,20 @@ contract Uma {
         //return current time
     }
 
-    // Settle the request once it's gone through the liveness period of 30 seconds. This acts the finalize the voted on price.
-    // In a real world use of the Optimistic Oracle this should be longer to give time to disputers to catch bat price proposals.
+    // Settle the request once it's gone through the liveness period of 30 seconds. This acts the finalize the voted-on price.
+    // In a real-world use of the Optimistic Oracle this should be longer to give time to disputers to catch bat price proposals.
 
     //Alain: The request in UMA is being hashed which means there will be no problems even if the same address uploads multiple pictures/videos: https://github.com/UMAprotocol/protocol/blob/master/packages/core/contracts/oracle/interfaces/OptimisticOracleV2Interface.sol
     function settleRequest(uint contentId) public {
+ 	uint256 requestTime = contentIdToStartingTime[contentId];
         bytes memory ad = contentIdToAncillaryData[contentId];
-        uint256 requestTime = contentIdToStartingTime[contentId];
 
         oo.settle(address(this), identifier, requestTime, ad);
     }
     
     function propose(uint contentId, int256 proposedPrice) public {
-        bytes memory ad = contentIdToAncillaryData[contentId];
         uint256 requestTime = contentIdToStartingTime[contentId];
+        bytes memory ad = contentIdToAncillaryData[contentId];
 
         oo.proposePriceFor(msg.sender, address(this), identifier, requestTime, ad, proposedPrice);
     }
@@ -98,20 +89,16 @@ contract Uma {
 
     // Fetch the resolved price from the Optimistic Oracle that was settled.
     function getSettledData(uint contentId) public view returns (int256) {
+	uint256 requestTime = contentIdToStartingTime[contentId];
         bytes memory ad = contentIdToAncillaryData[contentId];
-        uint256 requestTime = contentIdToStartingTime[contentId];
+
         return oo.getRequest(address(this), identifier, requestTime, ad).resolvedPrice;
     }
-
-    
-
 
     // Fetch Cids
     function getCids() public view returns (uint[] memory) {
         return contentIds[msg.sender];
     }
-
-
 
     // Fetch the Ancillary data
     function getData (uint contentId) public view returns (bytes memory) {
@@ -119,12 +106,10 @@ contract Uma {
         return ad;
     }
 
-
     // fetch the starting time
     function getStartingTime(uint256 contentId) public view returns (uint256) {
         return contentIdToStartingTime[contentId];
     }
-
 
     // fetch the expiration time
     function getExpirationTime(uint contentId) public view returns (uint256) {
@@ -135,9 +120,7 @@ contract Uma {
         bytes memory ancillaryData = contentIdToAncillaryData[contentId];
         return oo.getRequest(address(this), identifier, startingTime, ancillaryData).expirationTime;
     }
-
-    
-
+ 
     // fetch the oracle address
     function getOracleAddress() public view returns(address) {
         return address(oo);
